@@ -695,6 +695,7 @@ function! s:command_maker_base._bind_args() abort dict
         let args = copy(self.args)
     endif
     let self.args = args
+    return self
 endfunction
 
 function! s:command_maker_base._get_argv(jobinfo) abort dict
