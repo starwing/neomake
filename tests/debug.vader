@@ -57,3 +57,9 @@ Execute (neomake#debug#validate_maker: validates maker name):
   \            string(maker.name), string(g:neomake#core#valid_maker_name_pattern))],
   \ 'warnings': [],
   \ }
+
+Execute (neomake#debug#validate_maker with exe as function):
+  let maker = neomake#GetMaker('maker_with_nonstring_exe', 'neomake_tests')
+  AssertEqual neomake#debug#validate_maker(maker), {
+  \ 'errors': ['Non-string given for executable of maker maker_with_nonstring_exe: type 2.'],
+  \ 'warnings': []}

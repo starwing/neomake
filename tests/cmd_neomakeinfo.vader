@@ -187,3 +187,27 @@ Execute (Verbose NeomakeInfo does not display message for filetype with no maker
 
   AssertEqual msgs, []
   Assert index(info, 'For the current filetype ("doesnotexist", used with :Neomake):') > 0
+
+Execute (NeomakeInfo with maker name):
+  new
+  noautocmd set filetype=neomake_tests
+  NeomakeInfo foo
+  AssertNeomakeMessage 'Neomake: Maker not found (for filetype neomake_tests): foo.', 0
+
+  call NeomakeTestsSetVimMessagesMarker()
+  NeomakeInfo makeprg
+  AssertEqual NeomakeTestsGetVimMessages(), []
+  AssertEqual neomake#debug#get_maker_info('maker_with_nonstring_exe')[-2:], [
+  \ ' - ERRORS:',
+  \ "   - maker's exe (makeprg) is not executable.",
+  \ ]
+
+
+  call NeomakeTestsSetVimMessagesMarker()
+  NeomakeInfo makeprg
+  AssertEqual NeomakeTestsGetVimMessages(), []
+  AssertEqual neomake#debug#get_maker_info('makeprg')[-2:], [
+  \ ' - ERRORS:',
+  \ "   - maker's exe (makeprg) is not executable.",
+  \ ]
+  bwipe

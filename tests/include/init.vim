@@ -387,8 +387,8 @@ endfunction
 
 function! NeomakeTestsGetVimMessages()
   let msgs = split(neomake#utils#redir('messages'), "\n")
-  call NeomakeTestsSetVimMessagesMarker()
   let idx = index(reverse(msgs), s:vim_msgs_marker)
+  call NeomakeTestsSetVimMessagesMarker()
   if idx <= 0
     return []
   endif
