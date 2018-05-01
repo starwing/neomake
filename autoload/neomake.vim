@@ -886,6 +886,9 @@ function! neomake#GetEnabledMakers(...) abort
         " This variable is also used for project jobs, so it has no
         " buffer local ('b:') counterpart for now.
         let enabled_makers = copy(get(g:, 'neomake_enabled_makers', []))
+        if empty(enabled_makers)
+            let enabled_makers = [s:get_makeprg_maker()]
+        endif
         call map(enabled_makers, "extend(neomake#GetMaker(v:val),
                     \ {'auto_enabled': 0}, 'error')")
     else
@@ -1161,7 +1164,11 @@ endfunction
 " This could be cached, but needs to take into account / set &errorformat,
 " and other settings that are handled by neomake#GetMaker.
 function! s:get_makeprg_maker() abort
-    let maker = neomake#utils#MakerFromCommand(&makeprg)
+    if &makeprg =~# '\s'
+        let maker = neomake#utils#MakerFromCommand(&makeprg)
+    else
+        let maker = neomake#utils#MakerFromCommand([&makeprg])
+    endif
     let maker.name = 'makeprg'
     return neomake#GetMaker(maker)
 endfunction
@@ -1233,8 +1240,6 @@ function! s:Make(options) abort
                     endif
                     unlet s:make_info[make_id]
                     return []
-                else
-                    let makers = [s:get_makeprg_maker()]
                 endif
             endif
         endif
@@ -1324,7 +1329,7 @@ function! s:AddExprCallback(jobinfo, prev_list) abort
         let postprocessors = Postprocess
     endif
     let debug = neomake#utils#get_verbosity(a:jobinfo) >= 3 || !empty(get(g:, 'neomake_logfile'))
-    let maker_name = get(maker, 'name', 'makeprg')
+    let maker_name = maker.name
     let make_info = s:make_info[a:jobinfo.make_id]
     let default_type = 'unset'
 
