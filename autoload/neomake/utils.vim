@@ -117,7 +117,7 @@ function! neomake#utils#MakerFromCommand(command) abort
     else
         let maker.exe = a:command[0]
         let maker.args = a:command[1:]
-        let maker.__command_is_string = 1
+        let maker.__command_is_string = 0
     endif
     return maker
 endfunction

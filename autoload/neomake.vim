@@ -727,39 +727,66 @@ function! s:GetMakerForFiletype(ft, maker_name) abort
     return s:unset_dict
 endfunction
 
+function! neomake#get_maker_by_name(maker_name, ...) abort
+    let for_ft = a:0 ? a:1 : 0
+    let ft_config = for_ft is# 0 ? &filetype : for_ft
+    let bufnr = bufnr('%')
+    if a:maker_name !~# '\v^\w+$'
+        throw printf('Neomake: Invalid maker name: "%s"', a:maker_name)
+    endif
+
+    let maker = neomake#utils#GetSetting('maker', {'name': a:maker_name}, s:unset_dict, ft_config, bufnr)
+    if maker is# s:unset_dict
+        if a:maker_name ==# 'makeprg'
+            let maker = s:get_makeprg_maker()
+        elseif for_ft isnot# 0
+            let maker = s:GetMakerForFiletype(for_ft, a:maker_name)
+        else
+            call neomake#utils#load_global_makers()
+            let f = 'neomake#makers#'.a:maker_name.'#'.a:maker_name
+            if exists('*'.f)
+                let maker = call(f, [])
+            endif
+        endif
+    endif
+    if type(maker) != type({})
+        throw printf('Neomake: Got non-dict for maker %s: %s',
+                    \ a:maker_name, maker)
+    endif
+    if maker isnot# s:unset_dict && !has_key(maker, 'name')
+        let maker.name = a:maker_name
+    endif
+    return maker
+endfunction
+
 function! neomake#GetMaker(name_or_maker, ...) abort
-    let ft = a:0 ? a:1 : &filetype
+    let for_ft = a:0 ? a:1 : 0
     let bufnr = bufnr('%')
     if type(a:name_or_maker) == type({})
         let maker = a:name_or_maker
-    elseif a:name_or_maker ==# 'makeprg'
-        let maker = s:get_makeprg_maker()
-    elseif a:name_or_maker !~# '\v^\w+$'
-        throw printf('Neomake: Invalid maker name: "%s"', a:name_or_maker)
-    else
-        let maker = neomake#utils#GetSetting('maker', {'name': a:name_or_maker}, s:unset_dict, ft, bufnr)
-        if maker is# s:unset_dict
-            if !empty(ft)
-                let maker = s:GetMakerForFiletype(ft, a:name_or_maker)
-            endif
-            if maker is# s:unset_dict
-                call neomake#utils#load_global_makers()
-                let f = 'neomake#makers#'.a:name_or_maker.'#'.a:name_or_maker
-                if exists('*'.f)
-                    let maker = call(f, [])
-                endif
-                if maker is# s:unset_dict
-                    throw printf('Neomake: Maker not found (for %s): %s',
-                                \ !empty(ft) ? 'filetype '.ft : 'empty filetype',
-                                \ a:name_or_maker)
-                endif
-            endif
+        if !has_key(maker, 'name')
+            let maker.name = 'unnamed_maker'
         endif
-        if type(maker) != type({})
-            throw printf('Neomake: Got non-dict for maker %s: %s',
-                        \ a:name_or_maker, maker)
+    else
+        let maker = neomake#get_maker_by_name(a:name_or_maker, for_ft)
+        if maker is# s:unset_dict
+            if for_ft isnot# 0
+                throw printf('Neomake: Maker not found (for %s): %s',
+                            \ !empty(for_ft) ? 'filetype '.for_ft : 'empty filetype',
+                            \ a:name_or_maker)
+            else
+                throw printf('Neomake: Maker not found (without filetype): %s',
+                            \ a:name_or_maker)
+            endif
         endif
     endif
+    return neomake#create_maker_object(maker)
+endfunction
+
+" TODO: move to core?!
+" NOTE: uses ft and bufnr for config only.
+function! neomake#create_maker_object(maker) abort
+    let [maker, ft, bufnr] = [a:maker, &filetype, bufnr('%')]
 
     " Create the maker object.
     let GetEntries = neomake#utils#GetSetting('get_list_entries', maker, -1, ft, bufnr)
@@ -768,13 +795,6 @@ function! neomake#GetMaker(name_or_maker, ...) abort
         let maker.get_list_entries = GetEntries
     else
         let maker = extend(copy(s:command_maker_base), copy(maker))
-    endif
-    if !has_key(maker, 'name')
-        if type(a:name_or_maker) == type('')
-            let maker.name = a:name_or_maker
-        else
-            let maker.name = 'unnamed_maker'
-        endif
     endif
     if !has_key(maker, 'get_list_entries')
         " Set defaults for command/job based makers.
@@ -887,10 +907,16 @@ function! neomake#GetEnabledMakers(...) abort
         " buffer local ('b:') counterpart for now.
         let enabled_makers = copy(get(g:, 'neomake_enabled_makers', []))
         if empty(enabled_makers)
-            let enabled_makers = [s:get_makeprg_maker()]
+            let makeprg_maker = s:get_makeprg_maker()
+            if !empty(makeprg_maker)
+                let makeprg_maker = neomake#GetMaker(makeprg_maker)
+                let makeprg_maker.auto_enabled = 1
+                let enabled_makers = [makeprg_maker]
+            endif
+        else
+            call map(enabled_makers, "extend(neomake#GetMaker(v:val),
+                        \ {'auto_enabled': 0}, 'error')")
         endif
-        call map(enabled_makers, "extend(neomake#GetMaker(v:val),
-                    \ {'auto_enabled': 0}, 'error')")
     else
         let enabled_makers = []
         let makers = neomake#utils#GetSetting('enabled_makers', {}, s:unset_list, a:1, bufnr('%'))
@@ -1164,12 +1190,16 @@ endfunction
 " This could be cached, but needs to take into account / set &errorformat,
 " and other settings that are handled by neomake#GetMaker.
 function! s:get_makeprg_maker() abort
-    if &makeprg =~# '\s'
+    if empty(&makeprg)
+        return {}
+    elseif &makeprg =~# '\s'
         let maker = neomake#utils#MakerFromCommand(&makeprg)
     else
         let maker = neomake#utils#MakerFromCommand([&makeprg])
     endif
     let maker.name = 'makeprg'
+    " Do not append file.  &makeprg should contain %/# for this instead.
+    let maker.append_file = 0
     return neomake#GetMaker(maker)
 endfunction
 

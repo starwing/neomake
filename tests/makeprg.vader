@@ -14,6 +14,7 @@ Execute (makeprg: exe):
   let jobinfo.file_mode = 0
   let maker = maker.fn(jobinfo)
   AssertEqual maker.args, []
+  AssertEqual maker.append_file, 0
 
 Execute (makeprg: exe and args):
   Save &makeprg
@@ -24,3 +25,4 @@ Execute (makeprg: exe and args):
   let maker = makers[0]
   AssertEqual maker.exe, &shell
   AssertEqual maker.args, [&shellcmdflag, 'my-make with-arg']
+  AssertEqual maker.append_file, 0

@@ -113,27 +113,25 @@ function! s:get_maker_info(maker, ...) abort
 endfunction
 
 function! neomake#debug#get_maker_info(maker_name) abort
-    try
-        let maker = neomake#GetMaker(a:maker_name, &filetype)
-    catch
-        let error = v:exception
-        try
-            let maker = neomake#GetMaker(a:maker_name)
-        catch
-            let error = printf(
-                  \ 'Could not get info for maker %s: %s, %s.',
-                  \ a:maker_name, error, v:exception)
-            call neomake#log#error(error)
-            return []
-        endtry
-    endtry
+    let maker = neomake#get_maker_by_name(a:maker_name, &filetype)
+    if empty(maker)
+        let maker = neomake#get_maker_by_name(a:maker_name)
+    endif
+    if empty(maker)
+        call neomake#log#error(
+                    \ printf('Neomake: Maker not found: %s.',
+                    \ a:maker_name))
+        return []
+    endif
+    let maker = neomake#create_maker_object(maker)
     return [maker.name] + s:get_maker_info(maker)
 endfunction
 
 function! neomake#debug#display_info(...) abort
     let bang = a:0 ? a:1 : 0
     if a:0 > 1
-        let lines = neomake#debug#get_maker_info(a:2)
+        let maker_name = a:2
+        let lines = neomake#debug#get_maker_info(maker_name)
     else
         let lines = neomake#debug#_get_info_lines()
     endif
