@@ -21,12 +21,16 @@ endif
 
 function! neomake#makers#ft#erlang#GlobPaths() abort
     " Find project root directory.
-    let rebar_config = neomake#utils#FindGlobFile('rebar.config')
-    if !empty(rebar_config)
-        let root = fnamemodify(rebar_config, ':h')
-    else
-        " At least try with CWD
-        let root = getcwd()
+    let root = get(b:, 'neomake_erlang_erlc_root',
+             \ get(g:, 'neomake_erlang_erlc_root'))
+    if empty(root)
+        let rebar_config = neomake#utils#FindGlobFile('rebar.config')
+        if !empty(rebar_config)
+            let root = fnamemodify(rebar_config, ':h')
+        else
+            " At least try with CWD
+            let root = getcwd()
+        endif
     endif
     let root = fnamemodify(root, ':p')
     let build_dir = root . '_build'
@@ -63,6 +67,8 @@ function! neomake#makers#ft#erlang#GlobPaths() abort
         let args += [ '-pa', ebin,
                     \ '-I', substitute(ebin, 'ebin$', 'include', '') ]
     endfor
+    let args += get(b:, 'neomake_erlang_erlc_flags',
+              \ get(g:, 'neomake_erlang_erlc_flags', []))
     if !isdirectory(target_dir)
         call mkdir(target_dir, 'p')
     endif
